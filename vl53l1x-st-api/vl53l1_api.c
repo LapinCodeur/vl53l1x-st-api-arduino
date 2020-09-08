@@ -1113,7 +1113,51 @@ VL53L1_Error VL53L1_GetDistanceMode(VL53L1_DEV Dev,
 	return Status;
 }
 
+VL53L1_Error VL53L1_SetROICenter(VL53L1_DEV dev, uint8_t ROICenter)
+{
+	VL53L1_Error status = 0;
+	status = VL53L1_WrByte(dev, VL53L1_ROI_CONFIG__USER_ROI_CENTRE_SPAD, ROICenter);
+	return status;
+}
 
+VL53L1_Error VL53L1_GetROICenter(VL53L1_DEV dev, uint8_t *ROICenter)
+{
+	VL53L1_Error status = 0;
+	uint8_t tmp;
+	status = VL53L1_RdByte(dev, VL53L1_ROI_CONFIG__USER_ROI_CENTRE_SPAD, &tmp);
+	*ROICenter = tmp;
+	return status;
+}
+
+VL53L1_Error VL53L1_SetROI(VL53L1_DEV dev, uint16_t X, uint16_t Y)
+{
+	uint8_t OpticalCenter;
+	VL53L1_Error status = 0;
+
+	status =VL53L1_RdByte(dev, VL53L1_ROI_CONFIG__MODE_ROI_CENTRE_SPAD, &OpticalCenter);
+	if (X > 16)
+		X = 16;
+	if (Y > 16)
+		Y = 16;
+	if (X > 10 || Y > 10){
+		OpticalCenter = 199;
+	}
+	status = VL53L1_WrByte(dev, VL53L1_ROI_CONFIG__USER_ROI_CENTRE_SPAD, OpticalCenter);
+	status = VL53L1_WrByte(dev, VL53L1_ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE,
+		       (Y - 1) << 4 | (X - 1));
+	return status;
+}
+
+VL53L1_Error VL53L1_GetROI_XY(VL53L1_DEV dev, uint16_t *ROI_X, uint16_t *ROI_Y)
+{
+	VL53L1_Error status = 0;
+	uint8_t tmp;
+
+	status = VL53L1_RdByte(dev, VL53L1_ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, &tmp);
+	*ROI_X = ((uint16_t)tmp & 0x0F) + 1;
+	*ROI_Y = (((uint16_t)tmp & 0xF0) >> 4) + 1;
+	return status;
+}
 
 
 VL53L1_Error VL53L1_SetMeasurementTimingBudgetMicroSeconds(VL53L1_DEV Dev,
@@ -1907,6 +1951,14 @@ VL53L1_Error VL53L1_ClearInterruptAndStartMeasurement(VL53L1_DEV Dev)
 
 	LOG_FUNCTION_END(Status);
 	return Status;
+}
+
+VL53L1_Error VL53L1_ClearInterrupt(VL53L1_DEV dev)
+{
+	VL53L1_Error status = 0;
+
+	status = VL53L1_WrByte(dev, VL53L1_SYSTEM__INTERRUPT_CLEAR, 0x01);
+	return status;
 }
 
 
@@ -2909,4 +2961,3 @@ VL53L1_Error VL53L1_GetThresholdConfig(VL53L1_DEV Dev,
 
 
 /* End Group PAL IRQ Triggered events Functions */
-

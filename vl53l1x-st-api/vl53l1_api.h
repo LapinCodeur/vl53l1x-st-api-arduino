@@ -66,6 +66,7 @@
 
 #include "vl53l1_api_strings.h"
 #include "vl53l1_api_core.h"
+//#include "vl53l1_register_map.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -365,6 +366,29 @@ VL53L1_Error VL53L1_GetDistanceMode(VL53L1_DEV Dev,
 		VL53L1_DistanceModes *pDistanceMode);
 
 
+/**
+* @brief This function programs the ROI (Region of Interest)\n
+* The ROI position is centered, only the ROI size can be reprogrammed.\n
+* The smallest acceptable ROI size = 4\n
+* @param X:ROI Width; Y=ROI Height
+*/
+VL53L1_Error VL53L1_SetROI(VL53L1_DEV dev, uint16_t X, uint16_t Y);
+
+/**
+*@brief This function returns width X and height Y
+*/
+VL53L1_Error VL53L1_GetROI_XY(VL53L1_DEV dev, uint16_t *ROI_X, uint16_t *ROI_Y);
+
+/**
+*@brief This function programs the new user ROI center, please to be aware that there is no check in this function.
+*if the ROI center vs ROI size is out of border the ranging function return error #13
+*/
+VL53L1_Error VL53L1_SetROICenter(VL53L1_DEV dev, uint8_t ROICenter);
+
+/**
+*@brief This function returns the current user ROI center
+*/
+VL53L1_Error VL53L1_GetROICenter(VL53L1_DEV dev, uint8_t *ROICenter);
 
 
 /**
@@ -813,6 +837,12 @@ VL53L1_Error VL53L1_StopMeasurement(VL53L1_DEV Dev);
  * @return  "Other error code"   See ::VL53L1_Error
  */
 VL53L1_Error VL53L1_ClearInterruptAndStartMeasurement(VL53L1_DEV Dev);
+
+/**
+ * @brief This function clears the interrupt, to be called after a ranging data reading
+ * to arm the interrupt for the next data ready event.
+ */
+VL53L1_Error VL53L1_ClearInterrupt(VL53L1_DEV dev);
 
 /**
  * @brief Return Measurement Data Ready

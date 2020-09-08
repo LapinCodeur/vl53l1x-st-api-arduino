@@ -44,23 +44,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <Wire.h>
 #include "vl53l1_api.h"
 
-// By default, this example blocks while waiting for sensor data to be ready.
-// Comment out this line to poll for data ready in a non-blocking way instead.
-#define USE_BLOCKING_LOOP
 
 // Timing budget set through VL53L1_SetMeasurementTimingBudgetMicroSeconds().
-#define MEASUREMENT_BUDGET_MS 50
+#define MEASUREMENT_BUDGET_MS 20//20
 
 // Interval between measurements, set through
 // VL53L1_SetInterMeasurementPeriodMilliSeconds(). According to the API user
 // manual (rev 2), "the minimum inter-measurement period must be longer than the
 // timing budget + 4 ms." The STM32Cube example from ST uses 500 ms, but we
 // reduce this to 55 ms to allow faster readings.
-#define INTER_MEASUREMENT_PERIOD_MS 55
+#define INTER_MEASUREMENT_PERIOD_MS 33//21
+#define TotalWidthOfSPADS           16
+#define WidthOfSPADsPerZone           4
+#define NumOfSPADsShiftPerZone          1
+#define HorizontalFOVofSensor         19.09
+#define SingleSPADFOV             (HorizontalFOVofSensor/TotalWidthOfSPADS)
+#define NumOfZonesPerSensor           (((TotalWidthOfSPADS - WidthOfSPADsPerZone) / NumOfSPADsShiftPerZone) + 1)
+#define StartingZoneAngle           (WidthOfSPADsPerZone / 2 * SingleSPADFOV)
+#define ZoneFOVChangePerStep          (SingleSPADFOV * NumOfSPADsShiftPerZone)
 
 VL53L1_Dev_t                   dev;
 VL53L1_DEV                     Dev = &dev;
-
+uint16_t zone_center[]={247,239,231,223,215,207,199,191,183,175,167,159,151};
+float    LidarAngle[13];
+uint16_t LidarDistance[13];
 int status;
 
 void setup()
@@ -71,6 +78,7 @@ void setup()
   Wire.begin();
   Wire.setClock(400000);
   Serial.begin(115200);
+  delay(2000);
 
   // This is the default 8-bit slave address (including R/W as the least
   // significant bit) as expected by the API. Note that the Arduino Wire library
@@ -93,10 +101,24 @@ void setup()
   status = VL53L1_WaitDeviceBooted(Dev);
   status = VL53L1_DataInit(Dev);
   status = VL53L1_StaticInit(Dev);
-  status = VL53L1_SetDistanceMode(Dev, VL53L1_DISTANCEMODE_LONG);
+  Serial.print(F("VL53L1_SetDistanceMode : "));
+  status = VL53L1_SetDistanceMode(Dev, VL53L1_DISTANCEMODE_SHORT);
+  Serial.println(status);
+  Serial.print(F("VL53L1_SetMeasurementTimingBudgetMicroSeconds : "));
   status = VL53L1_SetMeasurementTimingBudgetMicroSeconds(Dev, MEASUREMENT_BUDGET_MS * 1000);
+  Serial.println(status);
+  Serial.print(F("VL53L1_SetInterMeasurementPeriodMilliSeconds : "));
   status = VL53L1_SetInterMeasurementPeriodMilliSeconds(Dev, INTER_MEASUREMENT_PERIOD_MS);
+  Serial.println(status);
+  Serial.print(F("VL53L1_SetROI : "));
+  status = VL53L1_SetROI(Dev, 4, 16);
+  Serial.println(status);
+  Serial.print(F("VL53L1_SetROICenter : "));
+  status = VL53L1_SetROICenter(Dev, zone_center[0]);
+  Serial.println(status);
+  Serial.print(F("VL53L1_StartMeasurement : "));
   status = VL53L1_StartMeasurement(Dev);
+  Serial.println(status);
 
   if(status)
   {
@@ -107,56 +129,74 @@ void setup()
 
 void loop()
 {
-#ifdef USE_BLOCKING_LOOP
-
-  // blocking wait for data ready
-  status = VL53L1_WaitMeasurementDataReady(Dev);
-
-  if(!status)
+  int exectime = millis();
+  for(int Zone = 0; Zone < NumOfZonesPerSensor; Zone)
   {
-    printRangingData();
-    VL53L1_ClearInterruptAndStartMeasurement(Dev);
-  }
-  else
-  {
-    Serial.print(F("Error waiting for data ready: "));
-    Serial.println(status);
-  }
+    VL53L1_ClearInterrupt(Dev);
+    status = VL53L1_SetROI(Dev, 4, 16);
+    status = VL53L1_SetROICenter(Dev, zone_center[Zone]);
+    //delay(10);
+    /*Serial.print(F("VL53L1_SetROICenter : "));
+    uint8_t ROIcenter;
+    VL53L1_GetROICenter(Dev, &ROIcenter);
+    Serial.println(ROIcenter);
+    Serial.print(F("VL53L1_SetROI : "));
+    uint16_t ROI_x;
+    uint16_t ROI_y;
+    VL53L1_GetROI_XY(Dev, &ROI_x, &ROI_y);
+    Serial.print(ROI_x);
+    Serial.print("\t");
+    Serial.println(ROI_y);*/
+    
+    // blocking wait for data ready
+    status = VL53L1_WaitMeasurementDataReady(Dev);
 
-#else
-
-  static uint16_t startMs = millis();
-  uint8_t isReady;
-
-  // non-blocking check for data ready
-  status = VL53L1_GetMeasurementDataReady(Dev, &isReady);
-
-  if(!status)
-  {
-    if(isReady)
+    if(!status)
     {
-      printRangingData();
-      VL53L1_ClearInterruptAndStartMeasurement(Dev);
-      startMs = millis();
+      //printRangingData();
+      stockData(Zone);
+      Zone++;
     }
-    else if((uint16_t)(millis() - startMs) > VL53L1_RANGE_COMPLETION_POLLING_TIMEOUT_MS)
+    else
     {
-      Serial.print(F("Timeout waiting for data ready."));
-      VL53L1_ClearInterruptAndStartMeasurement(Dev);
-      startMs = millis();
+      Serial.print(F("Error waiting for data ready: "));
+      Serial.println(status);
     }
   }
-  else
+  for(int zonetoprint = 0; zonetoprint < NumOfZonesPerSensor; zonetoprint++)
   {
-    Serial.print(F("Error getting data ready: "));
-    Serial.println(status);
+    /*Serial.print(LidarAngle[zonetoprint]);
+    Serial.print(" : ");
+    Serial.print(LidarDistance[zonetoprint]);
+    Serial.println();*/
+    Serial.print(LidarDistance[zonetoprint]);
+    Serial.print("\t");
   }
+  exectime = millis() - exectime;
+  Serial.print("time : ");
+  Serial.print(exectime);
+  Serial.println(" ms");
+}
 
-  // Optional polling delay; should be smaller than INTER_MEASUREMENT_PERIOD_MS,
-  // and MUST be smaller than VL53L1_RANGE_COMPLETION_POLLING_TIMEOUT_MS
-  delay(10);
+void stockData(uint8_t CurrentZone)
+{
+  static VL53L1_RangingMeasurementData_t RangingData;
+  double PartZoneAngle;
+  unsigned int Distance = 0;
 
-#endif
+  status = VL53L1_GetRangingMeasurementData(Dev, &RangingData);
+  if(!status)
+  {
+    Distance = RangingData.RangeMilliMeter;
+
+    if (Distance > 60000)
+    {
+      Distance = 0;
+    }
+    PartZoneAngle = (StartingZoneAngle + ZoneFOVChangePerStep*CurrentZone) - (HorizontalFOVofSensor / 2.0);
+    LidarAngle[CurrentZone] = PartZoneAngle;
+    LidarDistance[CurrentZone] = Distance;
+  }
 }
 
 void printRangingData()
