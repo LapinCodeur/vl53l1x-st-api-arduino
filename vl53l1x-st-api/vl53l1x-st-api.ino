@@ -12,6 +12,8 @@ ST, available here:
 
 http://www.st.com/content/st_com/en/products/embedded-software/proximity-sensors-software/stsw-img007.html
 
+It is also using fonctions from the ultra lite driver and implement STSW-IMG017 following the AN5191 application note.
+
 ********************************************************************************
 
 COPYRIGHT(c) 2017 STMicroelectronics
@@ -51,9 +53,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Interval between measurements, set through
 // VL53L1_SetInterMeasurementPeriodMilliSeconds(). According to the API user
 // manual (rev 2), "the minimum inter-measurement period must be longer than the
-// timing budget + 4 ms." The STM32Cube example from ST uses 500 ms, but we
-// reduce this to 55 ms to allow faster readings.
-#define INTER_MEASUREMENT_PERIOD_MS 33//21
+// timing budget + 4 ms."
+#define INTER_MEASUREMENT_PERIOD_MS 24//33
 #define TotalWidthOfSPADS           16
 #define WidthOfSPADsPerZone           4
 #define NumOfSPADsShiftPerZone          1
@@ -111,7 +112,7 @@ void setup()
   status = VL53L1_SetInterMeasurementPeriodMilliSeconds(Dev, INTER_MEASUREMENT_PERIOD_MS);
   Serial.println(status);
   Serial.print(F("VL53L1_SetROI : "));
-  status = VL53L1_SetROI(Dev, 4, 16);
+  status = VL53L1_SetROI(Dev, WidthOfSPADsPerZone, TotalWidthOfSPADS);
   Serial.println(status);
   Serial.print(F("VL53L1_SetROICenter : "));
   status = VL53L1_SetROICenter(Dev, zone_center[0]);
@@ -130,12 +131,13 @@ void setup()
 void loop()
 {
   int exectime = millis();
+  int coord[13][2];
+  
   for(int Zone = 0; Zone < NumOfZonesPerSensor; Zone)
   {
     VL53L1_ClearInterrupt(Dev);
-    status = VL53L1_SetROI(Dev, 4, 16);
+    status = VL53L1_SetROI(Dev, WidthOfSPADsPerZone, TotalWidthOfSPADS);
     status = VL53L1_SetROICenter(Dev, zone_center[Zone]);
-    //delay(10);
     /*Serial.print(F("VL53L1_SetROICenter : "));
     uint8_t ROIcenter;
     VL53L1_GetROICenter(Dev, &ROIcenter);
@@ -163,21 +165,24 @@ void loop()
       Serial.println(status);
     }
   }
+  
+  getXYpos(coord);
+  
   for(int zonetoprint = 0; zonetoprint < NumOfZonesPerSensor; zonetoprint++)
   {
-    /*Serial.print(LidarAngle[zonetoprint]);
-    Serial.print(" : ");
-    Serial.print(LidarDistance[zonetoprint]);
-    Serial.println();*/
-    Serial.print(LidarDistance[zonetoprint]);
+    Serial.print(coord[zonetoprint][0]);
+    Serial.print(" , ");
+    Serial.print(coord[zonetoprint][1]);
     Serial.print("\t");
   }
   exectime = millis() - exectime;
   Serial.print("time : ");
   Serial.print(exectime);
   Serial.println(" ms");
+  Serial.println();
 }
 
+//Acquire angle and distance for the current zone
 void stockData(uint8_t CurrentZone)
 {
   static VL53L1_RangingMeasurementData_t RangingData;
@@ -199,19 +204,12 @@ void stockData(uint8_t CurrentZone)
   }
 }
 
-void printRangingData()
+//Convert angular and distance data into cartesian data
+void getXYpos(int coord[][2])
 {
-  static VL53L1_RangingMeasurementData_t RangingData;
-
-  status = VL53L1_GetRangingMeasurementData(Dev, &RangingData);
-  if(!status)
+  for(int Zone = 0; Zone < NumOfZonesPerSensor; Zone++)
   {
-    Serial.print(RangingData.RangeStatus);
-    Serial.print(F(","));
-    Serial.print(RangingData.RangeMilliMeter);
-    Serial.print(F(","));
-    Serial.print(RangingData.SignalRateRtnMegaCps/65536.0);
-    Serial.print(F(","));
-    Serial.println(RangingData.AmbientRateRtnMegaCps/65336.0);
+    coord[Zone][0] = cos((LidarAngle[Zone] / 180) * PI) * LidarDistance[Zone];
+    coord[Zone][1] = sin((LidarAngle[Zone] / 180) * PI) * LidarDistance[Zone];
   }
 }
