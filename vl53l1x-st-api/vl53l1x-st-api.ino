@@ -1,13 +1,6 @@
 /*******************************************************************************
 
-This sketch file is derived from an example program
-(Projects\Multi\Examples\VL53L1X\SimpleRangingExamples\Src\main.c) in the
-X-CUBE-53L1A1 Long Distance Ranging sensor software expansion for STM32Cube
-from ST, available here:
-
-http://www.st.com/content/st_com/en/products/ecosystems/stm32-open-development-environment/stm32cube-expansion-software/stm32-ode-sense-sw/x-cube-53l1a1.html
-
-The rest of the files in this sketch are from the STSW-IMG007 VL53L1X API from
+The API files are from the STSW-IMG007 VL53L1X API from
 ST, available here:
 
 http://www.st.com/content/st_com/en/products/embedded-software/proximity-sensors-software/stsw-img007.html
